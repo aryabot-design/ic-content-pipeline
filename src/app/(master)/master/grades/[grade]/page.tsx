@@ -51,7 +51,7 @@ export default function GradeDetailPage() {
   return (
     <>
       <div className="flex items-center gap-3 mb-2">
-        <Link href="/grades" className="text-muted-foreground hover:text-foreground transition-smooth">
+        <Link href="/master/grades" className="text-muted-foreground hover:text-foreground transition-smooth">
           <ArrowLeft size={18} />
         </Link>
         <Header title={getGradeLabel(gradeCode)} subtitle={`${assets.length} assets across ${chapters.size} chapters`} />

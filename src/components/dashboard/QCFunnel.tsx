@@ -11,15 +11,15 @@ export default function QCFunnel({ data }: QCFunnelProps) {
 
   return (
     <div className="bg-card rounded-xl border border-border p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">QC Pipeline</h3>
+      <h3 className="text-sm font-bold text-foreground mb-4">QC Pipeline</h3>
       <div className="space-y-3">
         {data.map((stage) => (
           <div key={stage.stage}>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-foreground">{stage.stage}</span>
-              <span className="text-xs font-bold text-foreground">{stage.count}</span>
+              <span className="text-[12px] font-medium text-muted-foreground">{stage.stage}</span>
+              <span className="text-[12px] font-bold text-foreground">{stage.count}</span>
             </div>
-            <div className="h-2.5 bg-muted rounded-full overflow-hidden">
+            <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
                 className="h-full rounded-full transition-all duration-500"
                 style={{

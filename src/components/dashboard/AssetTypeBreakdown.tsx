@@ -17,7 +17,7 @@ interface AssetTypeBreakdownProps {
 export default function AssetTypeBreakdown({ data }: AssetTypeBreakdownProps) {
   return (
     <div className="bg-card rounded-xl border border-border p-5">
-      <h3 className="text-sm font-semibold text-foreground mb-4">Asset Distribution</h3>
+      <h3 className="text-sm font-bold text-foreground mb-4">Asset Distribution</h3>
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -36,16 +36,18 @@ export default function AssetTypeBreakdown({ data }: AssetTypeBreakdownProps) {
             </Pie>
             <Tooltip
               contentStyle={{
-                background: '#fff',
-                border: '1px solid #e2e8f0',
+                background: '#1a1a1a',
+                border: '1px solid #2e2e2e',
                 borderRadius: '8px',
                 fontSize: '12px',
+                color: '#ededed',
               }}
+              itemStyle={{ color: '#a1a1a1' }}
             />
             <Legend
               iconType="circle"
               iconSize={8}
-              wrapperStyle={{ fontSize: '11px' }}
+              wrapperStyle={{ fontSize: '11px', color: '#a1a1a1' }}
             />
           </PieChart>
         </ResponsiveContainer>

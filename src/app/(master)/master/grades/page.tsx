@@ -33,7 +33,7 @@ export default function GradesPage() {
           return (
             <Link
               key={grade.code}
-              href={`/grades/${grade.code}`}
+              href={`/master/grades/${grade.code}`}
               className="bg-card rounded-xl border border-border p-5 hover:shadow-lg hover:border-accent/30 transition-smooth group"
             >
               {/* Completion Ring */}
@@ -45,7 +45,7 @@ export default function GradesPage() {
                       cy={ringSize / 2}
                       r={radius}
                       fill="none"
-                      stroke="#e2e8f0"
+                      stroke="#222"
                       strokeWidth={strokeWidth}
                     />
                     <circle

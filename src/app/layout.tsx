@@ -30,11 +30,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-screen bg-background">
+      <body className="min-h-screen bg-background text-foreground">
         <Providers>
           <AuthGuard>
             <Sidebar />
-            <main className="pl-60 min-h-screen">
+            <main className="pl-[260px] min-h-screen">
               <div className="p-6 max-w-[1400px]">
                 {children}
               </div>

@@ -81,6 +81,35 @@ export interface SyncLog {
   error_message?: string;
 }
 
+// Curriculum Tracker types
+export interface CurriculumModule {
+  phase: string;
+  tpCode: string;
+  thread: string;
+  strand: string;
+  gradeCode: string;
+  chapterCode: string;
+  chapterName: string;
+  conceptCode: string;
+  conceptName: string;
+  conceptType: string;
+  conceptDescription: string;
+  status: string;
+  teamOwner: string;
+  individualOwner: string;
+  dateOfDelivery: string;
+}
+
+export interface CurriculumStats {
+  total: number;
+  completed: number;
+  contentReady: number;
+  wip: number;
+  yetToStart: number;
+  closedPct: number;
+  progressPct: number;
+}
+
 export interface DashboardStats {
   total_assets: number;
   total_modules: number;

@@ -9,24 +9,44 @@ import {
   GitBranch,
   Users,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
+  Hash,
+  Activity,
+  Triangle,
+  Box,
+  BarChart3,
+  Upload,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import { useCurriculumData } from '@/lib/curriculum-data';
+import { csvToModules } from '@/lib/csv-parser';
+import ModeSwitcher from './ModeSwitcher';
 
-const navItems = [
-  { href: '/', label: 'Overview', icon: LayoutDashboard },
-  { href: '/grades', label: 'Grades', icon: GraduationCap },
-  { href: '/tracker', label: 'Asset Tracker', icon: Table2 },
-  { href: '/pipeline', label: 'QC Pipeline', icon: GitBranch },
-  { href: '/vendors', label: 'Vendors', icon: Users },
+const curriculumNav = [
+  { href: '/curriculum', label: 'Overview', icon: LayoutDashboard },
+  { href: '/curriculum/Numbers', label: 'Numbers', icon: Hash },
+  { href: '/curriculum/Algebra', label: 'Algebra', icon: Activity },
+  { href: '/curriculum/Geometry', label: 'Geometry', icon: Triangle },
+  { href: '/curriculum/Measurement', label: 'Measurement', icon: Box },
+  { href: '/curriculum/Data', label: 'Data', icon: BarChart3 },
+  { href: '/curriculum/teams', label: 'Teams', icon: Users },
+];
+
+const masterNav = [
+  { href: '/master', label: 'Overview', icon: LayoutDashboard },
+  { href: '/master/grades', label: 'Grades', icon: GraduationCap },
+  { href: '/master/tracker', label: 'Asset Tracker', icon: Table2 },
+  { href: '/master/pipeline', label: 'QC Pipeline', icon: GitBranch },
+  { href: '/master/vendors', label: 'Vendors', icon: Users },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const [collapsed, setCollapsed] = useState(false);
+  const isMaster = pathname.startsWith('/master');
+  const navItems = isMaster ? masterNav : curriculumNav;
   const [syncing, setSyncing] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { replaceData } = useCurriculumData();
 
   const handleSync = async () => {
     setSyncing(true);
@@ -40,70 +60,107 @@ export default function Sidebar() {
     }
   };
 
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const parsed = csvToModules(text);
+      if (parsed.length > 0) {
+        replaceData(parsed);
+        window.location.reload();
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
-    <aside
-      className={cn(
-        'fixed left-0 top-0 h-screen bg-sidebar text-sidebar-foreground flex flex-col z-50 transition-all duration-300',
-        collapsed ? 'w-16' : 'w-60'
-      )}
-    >
+    <aside className="fixed left-0 top-0 h-screen w-[260px] bg-sidebar border-r border-border flex flex-col z-50">
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 h-16 border-b border-white/10 shrink-0">
-        <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-sm shrink-0">
-          M
-        </div>
-        {!collapsed && (
-          <span className="font-semibold text-white text-sm truncate">
-            Master Dashboard
+      <div className="flex flex-col justify-center px-4 h-[60px] border-b border-border shrink-0">
+        <div className="flex items-center gap-2.5">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-foreground">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+          </svg>
+          <span className="font-bold text-[15px] text-foreground">
+            {isMaster ? 'Master Tracker' : 'Curriculum Tracker'}
           </span>
-        )}
+        </div>
+        <span className="text-[11px] text-[var(--text-tertiary)] mt-1 pl-[30px] uppercase tracking-wide">
+          {isMaster ? 'K-10 Project Execution' : 'SMP Curriculum Plan'}
+        </span>
+      </div>
+
+      {/* Mode Switcher */}
+      <div className="px-3 pt-3 pb-1">
+        <ModeSwitcher />
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+      <nav className="flex-1 py-2 px-2 space-y-0.5 overflow-y-auto">
+        <div className="text-[11px] font-semibold text-[var(--text-tertiary)] uppercase tracking-wide px-3 pt-2 pb-1.5">
+          {isMaster ? 'Project' : 'Dashboard'}
+        </div>
         {navItems.map((item) => {
           const isActive = pathname === item.href ||
-            (item.href !== '/' && pathname.startsWith(item.href));
+            (item.href !== '/curriculum' && item.href !== '/master' && pathname.startsWith(item.href));
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-smooth',
+                'relative flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-smooth',
                 isActive
-                  ? 'bg-sidebar-active text-white'
-                  : 'text-sidebar-foreground hover:bg-white/5 hover:text-white'
+                  ? 'bg-sidebar-active text-foreground'
+                  : 'text-sidebar-foreground hover:bg-muted hover:text-foreground'
               )}
             >
-              <item.icon size={18} className="shrink-0" />
-              {!collapsed && <span>{item.label}</span>}
+              {isActive && (
+                <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[2px] h-4 bg-foreground rounded-sm" />
+              )}
+              <item.icon size={16} className="shrink-0" />
+              <span>{item.label}</span>
             </Link>
           );
         })}
       </nav>
 
-      {/* Footer actions */}
-      <div className="px-2 pb-4 space-y-2 shrink-0">
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm w-full transition-smooth',
-            'text-sidebar-foreground hover:bg-white/5 hover:text-white',
-            syncing && 'opacity-50'
-          )}
-        >
-          <RefreshCw size={18} className={cn('shrink-0', syncing && 'animate-spin')} />
-          {!collapsed && <span>{syncing ? 'Syncing...' : 'Refresh Data'}</span>}
-        </button>
-
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm w-full text-sidebar-foreground hover:bg-white/5 hover:text-white transition-smooth"
-        >
-          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          {!collapsed && <span>Collapse</span>}
-        </button>
+      {/* Footer */}
+      <div className="px-2 pb-4 shrink-0">
+        {isMaster ? (
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className={cn(
+              'flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium w-full transition-smooth',
+              'text-sidebar-foreground hover:bg-muted hover:text-foreground',
+              syncing && 'opacity-50'
+            )}
+          >
+            <RefreshCw size={16} className={cn('shrink-0', syncing && 'animate-spin')} />
+            <span>{syncing ? 'Syncing...' : 'Refresh Data'}</span>
+          </button>
+        ) : (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleCSVUpload}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium w-full text-sidebar-foreground hover:bg-muted hover:text-foreground transition-smooth"
+            >
+              <Upload size={16} className="shrink-0" />
+              <span>Upload CSV</span>
+            </button>
+          </>
+        )}
       </div>
     </aside>
   );

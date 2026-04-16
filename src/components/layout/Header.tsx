@@ -1,6 +1,6 @@
 'use client';
 
-import { Clock, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 interface HeaderProps {
@@ -34,22 +34,19 @@ export default function Header({ title, subtitle, lastSync }: HeaderProps) {
   return (
     <header className="flex items-center justify-between mb-6">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">{title}</h1>
+        <h1 className="text-lg font-bold text-foreground">{title}</h1>
         {subtitle && (
-          <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
+          <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">{subtitle}</p>
         )}
       </div>
-      <div className="flex items-center gap-4 text-sm text-muted-foreground">
+      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
         {syncAgo && (
           <div className="flex items-center gap-1.5">
-            <RefreshCw size={14} />
+            <span className="w-1.5 h-1.5 rounded-full bg-success inline-block" />
             <span>Synced {syncAgo}</span>
           </div>
         )}
-        <div className="flex items-center gap-1.5">
-          <Clock size={14} />
-          <span>{time}</span>
-        </div>
+        <span>{time}</span>
       </div>
     </header>
   );
