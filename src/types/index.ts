@@ -46,6 +46,8 @@ export interface Asset {
   module_id: string;
   grade_code: string;
   chapter_code: string;
+  chapter_name: string;
+  module_name: string;
   module_mid: string;
   mid: string;
   asset_type: AssetType | string;

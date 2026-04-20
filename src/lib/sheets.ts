@@ -67,6 +67,8 @@ export async function fetchSheetData(accessToken?: string): Promise<Asset[]> {
       module_id: moduleMid,
       grade_code: grade,
       chapter_code: chapter,
+      chapter_name: get('Chapter Name'),
+      module_name: get('Module Name'),
       module_mid: moduleMid,
       mid: assetMid,
       asset_type: assetType,

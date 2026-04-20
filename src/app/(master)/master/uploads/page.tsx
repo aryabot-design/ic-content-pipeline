@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Search, ExternalLink, X, UploadCloud, Clock, CheckCircle2, FileEdit, ChevronDown, ChevronRight, FileSliders, Gamepad2, Video, CircleDashed } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Asset } from '@/types';
+import MultiSelect from '@/components/ui/MultiSelect';
 
 type Language = 'en' | 'id';
 type AssetState = 'creator_wip' | 'ready' | 'uploaded' | 'completed' | 'no_content';
@@ -79,9 +80,9 @@ export default function UploadsPage() {
   const [loading, setLoading] = useState(true);
   const [language, setLanguage] = useState<Language>('en');
   const [selectedGrade, setSelectedGrade] = useState('All');
-  const [selectedChapter, setSelectedChapter] = useState('All');
-  const [selectedVendor, setSelectedVendor] = useState('All');
-  const [selectedType, setSelectedType] = useState('All');
+  const [selectedChapters, setSelectedChapters] = useState<string[]>([]);
+  const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedState, setSelectedState] = useState<'All' | AssetState>('All');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -103,35 +104,50 @@ export default function UploadsPage() {
     [allAssets]
   );
 
-  const chapters = useMemo(() => {
+  const chapterOptions = useMemo(() => {
     const source = selectedGrade === 'All' ? allAssets : allAssets.filter(a => a.grade_code === selectedGrade);
-    return [...new Set(source.map(a => a.chapter_code).filter(Boolean))].sort(
-      (a, b) => parseInt(a.replace('C', '')) - parseInt(b.replace('C', ''))
-    );
+    const map = new Map<string, string>();
+    source.forEach(a => {
+      if (a.chapter_code && !map.has(a.chapter_code)) {
+        map.set(a.chapter_code, a.chapter_name || '');
+      }
+    });
+    return Array.from(map.entries())
+      .map(([code, name]) => ({
+        value: code,
+        label: `${code.replace('C', 'Chapter ')}${name ? ` · ${name}` : ''}`,
+        sublabel: name || undefined,
+      }))
+      .sort((a, b) => parseInt(a.value.replace('C', '')) - parseInt(b.value.replace('C', '')));
   }, [allAssets, selectedGrade]);
 
   useEffect(() => {
-    if (selectedChapter !== 'All' && !chapters.includes(selectedChapter)) {
-      setSelectedChapter('All');
-    }
-  }, [chapters, selectedChapter]);
+    const validCodes = new Set(chapterOptions.map(c => c.value));
+    setSelectedChapters(prev => prev.filter(c => validCodes.has(c)));
+  }, [chapterOptions]);
 
-  const vendors = useMemo(
-    () => [...new Set(allAssets.map(a => a.allocated_to).filter(Boolean))].sort(),
+  const vendorOptions = useMemo(
+    () =>
+      [...new Set(allAssets.map(a => a.allocated_to).filter(Boolean))]
+        .sort()
+        .map(v => ({ value: v, label: v })),
     [allAssets]
   );
 
-  const types = useMemo(
-    () => [...new Set(allAssets.map(a => a.asset_type).filter(Boolean))].sort(),
+  const typeOptions = useMemo(
+    () =>
+      [...new Set(allAssets.map(a => a.asset_type).filter(Boolean))]
+        .sort()
+        .map(t => ({ value: t, label: t })),
     [allAssets]
   );
 
   const scopedAssets = useMemo(() => {
     let result = allAssets;
     if (selectedGrade !== 'All') result = result.filter(a => a.grade_code === selectedGrade);
-    if (selectedChapter !== 'All') result = result.filter(a => a.chapter_code === selectedChapter);
-    if (selectedVendor !== 'All') result = result.filter(a => a.allocated_to === selectedVendor);
-    if (selectedType !== 'All') result = result.filter(a => a.asset_type === selectedType);
+    if (selectedChapters.length > 0) result = result.filter(a => selectedChapters.includes(a.chapter_code));
+    if (selectedVendors.length > 0) result = result.filter(a => selectedVendors.includes(a.allocated_to));
+    if (selectedTypes.length > 0) result = result.filter(a => selectedTypes.includes(a.asset_type));
     if (selectedState !== 'All') result = result.filter(a => classify(a, language) === selectedState);
     if (search) {
       const s = search.toLowerCase();
@@ -143,7 +159,7 @@ export default function UploadsPage() {
       );
     }
     return result;
-  }, [allAssets, language, selectedGrade, selectedChapter, selectedVendor, selectedType, selectedState, search]);
+  }, [allAssets, language, selectedGrade, selectedChapters, selectedVendors, selectedTypes, selectedState, search]);
 
   const totalCounts = useMemo(() => {
     const c: Record<AssetState, number> = { creator_wip: 0, ready: 0, uploaded: 0, completed: 0, no_content: 0 };
@@ -214,19 +230,33 @@ export default function UploadsPage() {
   const hasActiveFilters =
     search !== '' ||
     selectedGrade !== 'All' ||
-    selectedChapter !== 'All' ||
-    selectedVendor !== 'All' ||
-    selectedType !== 'All' ||
+    selectedChapters.length > 0 ||
+    selectedVendors.length > 0 ||
+    selectedTypes.length > 0 ||
     selectedState !== 'All';
 
   const clearFilters = () => {
     setSearch('');
     setSelectedGrade('All');
-    setSelectedChapter('All');
-    setSelectedVendor('All');
-    setSelectedType('All');
+    setSelectedChapters([]);
+    setSelectedVendors([]);
+    setSelectedTypes([]);
     setSelectedState('All');
   };
+
+  const scopeLine = (() => {
+    const parts: string[] = [];
+    if (selectedGrade !== 'All') parts.push(selectedGrade.replace('G', 'Grade '));
+    if (selectedChapters.length === 1) {
+      const c = chapterOptions.find(c => c.value === selectedChapters[0]);
+      if (c) parts.push(`${c.value.replace('C', 'Ch ')}${c.sublabel ? ` · ${c.sublabel}` : ''}`);
+    } else if (selectedChapters.length > 1) {
+      parts.push(`${selectedChapters.length} chapters`);
+    }
+    if (selectedVendors.length === 1) parts.push(`Vendor: ${selectedVendors[0]}`);
+    else if (selectedVendors.length > 1) parts.push(`${selectedVendors.length} vendors`);
+    return parts.join(' · ');
+  })();
 
   const toggle = (mid: string) => {
     setExpanded(prev => {
@@ -255,7 +285,7 @@ export default function UploadsPage() {
     <>
       <Header
         title="Upload Queue"
-        subtitle={`${modules.length} modules · ${scopedTotal.toLocaleString()} assets · ${language === 'en' ? 'English' : 'Indonesian'}`}
+        subtitle={`${modules.length} modules · ${scopedTotal.toLocaleString()} assets · ${language === 'en' ? 'English' : 'Indonesian'}${scopeLine ? ` · ${scopeLine}` : ''}`}
       />
 
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -336,20 +366,26 @@ export default function UploadsPage() {
             {grades.map(g => <option key={g} value={g}>{g.replace('G', 'Grade ')}</option>)}
           </select>
 
-          <select value={selectedChapter} onChange={e => setSelectedChapter(e.target.value)} className={selectClass}>
-            <option value="All">All Chapters</option>
-            {chapters.map(c => <option key={c} value={c}>Chapter {c.replace('C', '')}</option>)}
-          </select>
+          <MultiSelect
+            label="Chapters"
+            options={chapterOptions}
+            selected={selectedChapters}
+            onChange={setSelectedChapters}
+          />
 
-          <select value={selectedVendor} onChange={e => setSelectedVendor(e.target.value)} className={selectClass}>
-            <option value="All">All Vendors</option>
-            {vendors.map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
+          <MultiSelect
+            label="Vendors"
+            options={vendorOptions}
+            selected={selectedVendors}
+            onChange={setSelectedVendors}
+          />
 
-          <select value={selectedType} onChange={e => setSelectedType(e.target.value)} className={selectClass}>
-            <option value="All">All Types</option>
-            {types.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <MultiSelect
+            label="Types"
+            options={typeOptions}
+            selected={selectedTypes}
+            onChange={setSelectedTypes}
+          />
 
           {hasActiveFilters && (
             <button

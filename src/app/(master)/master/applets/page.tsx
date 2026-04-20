@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Search, X, ExternalLink, UploadCloud, Clock, CheckCircle2, FileEdit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Asset } from '@/types';
+import MultiSelect from '@/components/ui/MultiSelect';
 
 const MAX_SLOTS = 7;
 
@@ -61,9 +62,9 @@ export default function AppletsPage() {
   const [language, setLanguage] = useState<Language>('en');
   const [search, setSearch] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('All');
-  const [selectedChapter, setSelectedChapter] = useState('All');
-  const [selectedOwner, setSelectedOwner] = useState('All');
-  const [selectedVendor, setSelectedVendor] = useState('All');
+  const [selectedChapters, setSelectedChapters] = useState<string[]>([]);
+  const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
+  const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
   const [selectedState, setSelectedState] = useState<StateFilter>('All');
 
   useEffect(() => {
@@ -89,28 +90,44 @@ export default function AppletsPage() {
     [appletAssets]
   );
 
-  const chapters = useMemo(() => {
+  const chapterOptions = useMemo(() => {
     const source = selectedGrade === 'All' ? appletAssets : appletAssets.filter(a => a.grade_code === selectedGrade);
-    return [...new Set(source.map(a => a.chapter_code).filter(Boolean))].sort(
-      (a, b) => parseInt(a.replace('C', '')) - parseInt(b.replace('C', ''))
-    );
+    const map = new Map<string, string>();
+    source.forEach(a => {
+      if (a.chapter_code && !map.has(a.chapter_code)) {
+        map.set(a.chapter_code, a.chapter_name || '');
+      }
+    });
+    return Array.from(map.entries())
+      .map(([code, name]) => ({
+        value: code,
+        label: `${code.replace('C', 'Chapter ')}${name ? ` · ${name}` : ''}`,
+        sublabel: name || undefined,
+      }))
+      .sort((a, b) => parseInt(a.value.replace('C', '')) - parseInt(b.value.replace('C', '')));
   }, [appletAssets, selectedGrade]);
 
-  const owners = useMemo(
-    () => [...new Set(appletAssets.map(a => a.module_owner).filter(Boolean))].sort(),
+  const ownerOptions = useMemo(
+    () =>
+      [...new Set(appletAssets.map(a => a.module_owner).filter(Boolean))]
+        .sort()
+        .map(o => ({ value: o, label: o })),
     [appletAssets]
   );
 
-  const vendors = useMemo(
-    () => [...new Set(appletAssets.map(a => a.allocated_to).filter(Boolean))].sort(),
+  const vendorOptions = useMemo(
+    () =>
+      [...new Set(appletAssets.map(a => a.allocated_to).filter(Boolean))]
+        .sort()
+        .map(v => ({ value: v, label: v })),
     [appletAssets]
   );
 
+  // Drop chapter selections that are no longer valid when grade changes
   useEffect(() => {
-    if (selectedChapter !== 'All' && !chapters.includes(selectedChapter)) {
-      setSelectedChapter('All');
-    }
-  }, [chapters, selectedChapter]);
+    const validCodes = new Set(chapterOptions.map(c => c.value));
+    setSelectedChapters(prev => prev.filter(c => validCodes.has(c)));
+  }, [chapterOptions]);
 
   const rows = useMemo(() => {
     const byModule = new Map<string, { module: string; grade: string; chapter: string; owner: string; slots: Asset[] }>();
@@ -143,9 +160,9 @@ export default function AppletsPage() {
     const s = search.toLowerCase();
     return result.filter(r => {
       if (selectedGrade !== 'All' && r.grade !== selectedGrade) return false;
-      if (selectedChapter !== 'All' && r.chapter !== selectedChapter) return false;
-      if (selectedOwner !== 'All' && r.owner !== selectedOwner) return false;
-      if (selectedVendor !== 'All' && !r.slots.some(slot => slot?.allocated_to === selectedVendor)) return false;
+      if (selectedChapters.length > 0 && !selectedChapters.includes(r.chapter)) return false;
+      if (selectedOwners.length > 0 && !selectedOwners.includes(r.owner)) return false;
+      if (selectedVendors.length > 0 && !r.slots.some(slot => slot?.allocated_to && selectedVendors.includes(slot.allocated_to))) return false;
       if (selectedState !== 'All' && !r.slots.some(slot => slot && classifyApplet(slot, language) === selectedState)) return false;
       if (s) {
         const matches =
@@ -156,7 +173,7 @@ export default function AppletsPage() {
       }
       return true;
     });
-  }, [appletAssets, language, selectedGrade, selectedChapter, selectedOwner, selectedVendor, selectedState, search]);
+  }, [appletAssets, language, selectedGrade, selectedChapters, selectedOwners, selectedVendors, selectedState, search]);
 
   const columnTotals = useMemo(() => {
     const counts = new Array(MAX_SLOTS).fill(0);
@@ -175,19 +192,36 @@ export default function AppletsPage() {
   const hasActiveFilters =
     search !== '' ||
     selectedGrade !== 'All' ||
-    selectedChapter !== 'All' ||
-    selectedOwner !== 'All' ||
-    selectedVendor !== 'All' ||
+    selectedChapters.length > 0 ||
+    selectedOwners.length > 0 ||
+    selectedVendors.length > 0 ||
     selectedState !== 'All';
 
   const clearFilters = () => {
     setSearch('');
     setSelectedGrade('All');
-    setSelectedChapter('All');
-    setSelectedOwner('All');
-    setSelectedVendor('All');
+    setSelectedChapters([]);
+    setSelectedOwners([]);
+    setSelectedVendors([]);
     setSelectedState('All');
   };
+
+  // Build a human-readable context line for the active scope
+  const scopeLine = (() => {
+    const parts: string[] = [];
+    if (selectedGrade !== 'All') parts.push(selectedGrade.replace('G', 'Grade '));
+    if (selectedChapters.length === 1) {
+      const c = chapterOptions.find(c => c.value === selectedChapters[0]);
+      if (c) parts.push(`${c.value.replace('C', 'Ch ')}${c.sublabel ? ` · ${c.sublabel}` : ''}`);
+    } else if (selectedChapters.length > 1) {
+      parts.push(`${selectedChapters.length} chapters`);
+    }
+    if (selectedOwners.length === 1) parts.push(`Owner: ${selectedOwners[0]}`);
+    else if (selectedOwners.length > 1) parts.push(`${selectedOwners.length} owners`);
+    if (selectedVendors.length === 1) parts.push(`Vendor: ${selectedVendors[0]}`);
+    else if (selectedVendors.length > 1) parts.push(`${selectedVendors.length} vendors`);
+    return parts.join(' · ');
+  })();
 
   if (loading) {
     return (
@@ -204,7 +238,7 @@ export default function AppletsPage() {
     <>
       <Header
         title="Applet Allocations"
-        subtitle={`${rows.length} modules · ${totalApplets} applets · ${language === 'en' ? 'English' : 'Indonesian'}`}
+        subtitle={`${rows.length} modules · ${totalApplets} applets · ${language === 'en' ? 'English' : 'Indonesian'}${scopeLine ? ` · ${scopeLine}` : ''}`}
       />
 
       <div className="flex items-center justify-between gap-3 mb-4">
@@ -274,20 +308,26 @@ export default function AppletsPage() {
             {grades.map(g => <option key={g} value={g}>{g.replace('G', 'Grade ')}</option>)}
           </select>
 
-          <select value={selectedChapter} onChange={e => setSelectedChapter(e.target.value)} className={selectClass}>
-            <option value="All">All Chapters</option>
-            {chapters.map(c => <option key={c} value={c}>Chapter {c.replace('C', '')}</option>)}
-          </select>
+          <MultiSelect
+            label="Chapters"
+            options={chapterOptions}
+            selected={selectedChapters}
+            onChange={setSelectedChapters}
+          />
 
-          <select value={selectedOwner} onChange={e => setSelectedOwner(e.target.value)} className={selectClass}>
-            <option value="All">All Owners</option>
-            {owners.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
+          <MultiSelect
+            label="Owners"
+            options={ownerOptions}
+            selected={selectedOwners}
+            onChange={setSelectedOwners}
+          />
 
-          <select value={selectedVendor} onChange={e => setSelectedVendor(e.target.value)} className={selectClass}>
-            <option value="All">All Vendors</option>
-            {vendors.map(v => <option key={v} value={v}>{v}</option>)}
-          </select>
+          <MultiSelect
+            label="Vendors"
+            options={vendorOptions}
+            selected={selectedVendors}
+            onChange={setSelectedVendors}
+          />
 
           {hasActiveFilters && (
             <button
@@ -329,7 +369,7 @@ export default function AppletsPage() {
                     const state = classifyApplet(slot, language);
                     const meta = STATE_META[state];
                     const Icon = meta.icon;
-                    const dimVendor = selectedVendor !== 'All' && slot.allocated_to !== selectedVendor;
+                    const dimVendor = selectedVendors.length > 0 && !selectedVendors.includes(slot.allocated_to || '');
                     const dimState = selectedState !== 'All' && state !== selectedState;
                     const dim = dimVendor || dimState;
                     const vendorLabel = slot.allocated_to || '—';
