@@ -2,55 +2,69 @@
 
 import Header from '@/components/layout/Header';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Search, X, ExternalLink } from 'lucide-react';
+import { Loader2, Search, X, ExternalLink, UploadCloud, Clock, CheckCircle2, FileEdit } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Asset } from '@/types';
 
 const MAX_SLOTS = 7;
 
-type StatusKey = 'All' | 'Not Started' | 'In Progress' | 'Completed';
-const STATUS_OPTIONS: StatusKey[] = ['All', 'Not Started', 'In Progress', 'Completed'];
+type Language = 'en' | 'id';
+type AppletState = 'not_ready' | 'ready' | 'uploaded' | 'completed';
+type StateFilter = 'All' | AppletState;
 
-function assetStatus(a: Asset): Exclude<StatusKey, 'All'> {
-  const upload = (a.upload_status_en || '').toLowerCase();
-  const final = (a.final_status || '').toLowerCase();
-  if (final.includes('completed') || final.includes('all qc') || upload.includes('complete') || upload.includes('uploaded')) {
-    return 'Completed';
-  }
-  if (upload || final || a.qc_teacher_portal || a.qc_ifp || a.ready_for_review) {
-    return 'In Progress';
-  }
-  return 'Not Started';
+const STATE_LABEL: Record<AppletState, string> = {
+  not_ready: 'Not Ready',
+  ready: 'Ready for Upload',
+  uploaded: 'Uploaded',
+  completed: 'Completed',
+};
+
+const STATE_META: Record<AppletState, {
+  dot: string;
+  text: string;
+  bg: string;
+  ring: string;
+  icon: typeof Clock;
+  short: string;
+}> = {
+  not_ready: { dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400', bg: 'bg-slate-500/10', ring: 'ring-slate-500/50', icon: FileEdit, short: 'WIP' },
+  ready: { dot: 'bg-indigo-500', text: 'text-indigo-600 dark:text-indigo-300', bg: 'bg-indigo-500/10', ring: 'ring-indigo-500/50', icon: UploadCloud, short: 'RDY' },
+  uploaded: { dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-300', bg: 'bg-amber-500/10', ring: 'ring-amber-500/50', icon: Clock, short: 'UP' },
+  completed: { dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-300', bg: 'bg-emerald-500/10', ring: 'ring-emerald-500/50', icon: CheckCircle2, short: 'OK' },
+};
+
+function classifyApplet(a: Asset, lang: Language): AppletState {
+  const link = lang === 'en' ? a.link_en : a.link_id;
+  const status = (lang === 'en' ? a.upload_status_en : a.upload_status_id) || '';
+  const s = status.toLowerCase();
+
+  if (s.includes('qc') && (s.includes('complet') || s.includes('done'))) return 'completed';
+  if (s.includes('upload')) return 'uploaded';
+  if (link) return 'ready';
+  return 'not_ready';
 }
 
 function vendorColor(vendor: string): string {
   if (!vendor) return 'bg-muted text-muted-foreground';
   const v = vendor.toLowerCase();
-  if (v.includes('skyloom')) return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400';
-  if (v.includes('anabler')) return 'bg-orange-500/15 text-orange-700 dark:text-orange-400';
-  if (v.includes('internal')) return 'bg-blue-500/15 text-blue-700 dark:text-blue-400';
-  if (v.includes('aswin')) return 'bg-blue-500/15 text-blue-700 dark:text-blue-400';
-  if (v.includes('nishant')) return 'bg-purple-500/15 text-purple-700 dark:text-purple-400';
-  return 'bg-slate-500/15 text-slate-700 dark:text-slate-400';
-}
-
-function statusDot(status: Exclude<StatusKey, 'All'>): string {
-  switch (status) {
-    case 'Completed': return 'bg-emerald-500';
-    case 'In Progress': return 'bg-amber-500';
-    case 'Not Started': return 'bg-slate-400';
-  }
+  if (v.includes('skyloom')) return 'text-emerald-700 dark:text-emerald-300';
+  if (v.includes('anabler')) return 'text-orange-700 dark:text-orange-300';
+  if (v.includes('internal')) return 'text-blue-700 dark:text-blue-300';
+  if (v.includes('aswin')) return 'text-blue-700 dark:text-blue-300';
+  if (v.includes('nishant')) return 'text-purple-700 dark:text-purple-300';
+  return 'text-slate-700 dark:text-slate-300';
 }
 
 export default function AppletsPage() {
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
+  const [language, setLanguage] = useState<Language>('en');
   const [search, setSearch] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('All');
   const [selectedChapter, setSelectedChapter] = useState('All');
   const [selectedOwner, setSelectedOwner] = useState('All');
   const [selectedVendor, setSelectedVendor] = useState('All');
-  const [selectedStatus, setSelectedStatus] = useState<StatusKey>('All');
+  const [selectedState, setSelectedState] = useState<StateFilter>('All');
 
   useEffect(() => {
     fetch('/api/data?type=assets')
@@ -92,7 +106,6 @@ export default function AppletsPage() {
     [appletAssets]
   );
 
-  // Reset chapter when grade changes to an incompatible value
   useEffect(() => {
     if (selectedChapter !== 'All' && !chapters.includes(selectedChapter)) {
       setSelectedChapter('All');
@@ -133,7 +146,7 @@ export default function AppletsPage() {
       if (selectedChapter !== 'All' && r.chapter !== selectedChapter) return false;
       if (selectedOwner !== 'All' && r.owner !== selectedOwner) return false;
       if (selectedVendor !== 'All' && !r.slots.some(slot => slot?.allocated_to === selectedVendor)) return false;
-      if (selectedStatus !== 'All' && !r.slots.some(slot => slot && assetStatus(slot) === selectedStatus)) return false;
+      if (selectedState !== 'All' && !r.slots.some(slot => slot && classifyApplet(slot, language) === selectedState)) return false;
       if (s) {
         const matches =
           r.module.toLowerCase().includes(s) ||
@@ -143,7 +156,7 @@ export default function AppletsPage() {
       }
       return true;
     });
-  }, [appletAssets, selectedGrade, selectedChapter, selectedOwner, selectedVendor, selectedStatus, search]);
+  }, [appletAssets, language, selectedGrade, selectedChapter, selectedOwner, selectedVendor, selectedState, search]);
 
   const columnTotals = useMemo(() => {
     const counts = new Array(MAX_SLOTS).fill(0);
@@ -151,13 +164,13 @@ export default function AppletsPage() {
     return counts;
   }, [rows]);
 
-  const statusCounts = useMemo(() => {
-    const c = { 'Not Started': 0, 'In Progress': 0, 'Completed': 0 } as Record<Exclude<StatusKey, 'All'>, number>;
+  const stateCounts = useMemo(() => {
+    const c: Record<AppletState, number> = { not_ready: 0, ready: 0, uploaded: 0, completed: 0 };
     rows.forEach(r => r.slots.forEach(slot => {
-      if (slot) c[assetStatus(slot)]++;
+      if (slot) c[classifyApplet(slot, language)]++;
     }));
     return c;
-  }, [rows]);
+  }, [rows, language]);
 
   const hasActiveFilters =
     search !== '' ||
@@ -165,7 +178,7 @@ export default function AppletsPage() {
     selectedChapter !== 'All' ||
     selectedOwner !== 'All' ||
     selectedVendor !== 'All' ||
-    selectedStatus !== 'All';
+    selectedState !== 'All';
 
   const clearFilters = () => {
     setSearch('');
@@ -173,7 +186,7 @@ export default function AppletsPage() {
     setSelectedChapter('All');
     setSelectedOwner('All');
     setSelectedVendor('All');
-    setSelectedStatus('All');
+    setSelectedState('All');
   };
 
   if (loading) {
@@ -191,39 +204,53 @@ export default function AppletsPage() {
     <>
       <Header
         title="Applet Allocations"
-        subtitle={`${rows.length} modules · ${totalApplets} applets across A1–A${MAX_SLOTS}`}
+        subtitle={`${rows.length} modules · ${totalApplets} applets · ${language === 'en' ? 'English' : 'Indonesian'}`}
       />
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        {[
-          { key: 'total' as const, label: 'Applets', value: totalApplets, sub: `${rows.length} modules`, dot: 'bg-foreground/40', text: 'text-foreground' },
-          { key: 'Completed' as const, label: 'Completed', value: statusCounts.Completed, dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
-          { key: 'In Progress' as const, label: 'In Progress', value: statusCounts['In Progress'], dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
-          { key: 'Not Started' as const, label: 'Not Started', value: statusCounts['Not Started'], dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400' },
-        ].map(card => {
-          const clickable = card.key !== 'total';
-          const isActive = clickable && selectedStatus === card.key;
-          const pct = totalApplets > 0 && clickable ? Math.round((card.value / totalApplets) * 100) : null;
-          return (
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div className="inline-flex bg-muted rounded-lg p-1">
+          {(['en', 'id'] as Language[]).map(l => (
             <button
-              key={card.label}
-              disabled={!clickable}
-              onClick={() => clickable && setSelectedStatus(isActive ? 'All' : card.key)}
+              key={l}
+              onClick={() => setLanguage(l)}
               className={cn(
-                'text-left bg-card rounded-xl border border-border p-4 transition-smooth',
-                clickable && 'hover:border-foreground/20 cursor-pointer',
-                isActive && 'ring-2 ring-accent/60 border-transparent'
+                'px-4 py-1.5 text-sm font-medium rounded-md transition-smooth',
+                language === l ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
               )}
             >
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className={cn('w-1.5 h-1.5 rounded-full', card.dot)} />
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{card.label}</span>
+              {l === 'en' ? 'English' : 'Indonesian'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        {(Object.keys(STATE_LABEL) as AppletState[]).map(key => {
+          const meta = STATE_META[key];
+          const Icon = meta.icon;
+          const count = stateCounts[key];
+          const pct = totalApplets > 0 ? Math.round((count / totalApplets) * 100) : 0;
+          const isActive = selectedState === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setSelectedState(isActive ? 'All' : key)}
+              className={cn(
+                'text-left bg-card rounded-xl border border-border p-4 transition-smooth hover:border-foreground/20',
+                isActive && `ring-2 ${meta.ring} border-transparent`
+              )}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wide', meta.bg, meta.text)}>
+                  <Icon size={11} />
+                  {STATE_LABEL[key]}
+                </div>
+                <span className="text-xs text-muted-foreground">{pct}%</span>
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className={cn('text-2xl font-bold', card.text)}>{card.value.toLocaleString()}</span>
-                {pct !== null && <span className="text-xs text-muted-foreground">{pct}%</span>}
+              <div className="text-3xl font-bold text-foreground">{count.toLocaleString()}</div>
+              <div className="mt-3 h-1 bg-muted rounded-full overflow-hidden">
+                <div className={cn('h-full rounded-full', meta.dot)} style={{ width: `${pct}%` }} />
               </div>
-              {card.sub && <div className="text-[11px] text-muted-foreground mt-1">{card.sub}</div>}
             </button>
           );
         })}
@@ -244,36 +271,22 @@ export default function AppletsPage() {
 
           <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)} className={selectClass}>
             <option value="All">All Grades</option>
-            {grades.map(g => (
-              <option key={g} value={g}>{g.replace('G', 'Grade ')}</option>
-            ))}
+            {grades.map(g => <option key={g} value={g}>{g.replace('G', 'Grade ')}</option>)}
           </select>
 
           <select value={selectedChapter} onChange={e => setSelectedChapter(e.target.value)} className={selectClass}>
             <option value="All">All Chapters</option>
-            {chapters.map(c => (
-              <option key={c} value={c}>Chapter {c.replace('C', '')}</option>
-            ))}
+            {chapters.map(c => <option key={c} value={c}>Chapter {c.replace('C', '')}</option>)}
           </select>
 
           <select value={selectedOwner} onChange={e => setSelectedOwner(e.target.value)} className={selectClass}>
             <option value="All">All Owners</option>
-            {owners.map(o => (
-              <option key={o} value={o}>{o}</option>
-            ))}
+            {owners.map(o => <option key={o} value={o}>{o}</option>)}
           </select>
 
           <select value={selectedVendor} onChange={e => setSelectedVendor(e.target.value)} className={selectClass}>
             <option value="All">All Vendors</option>
-            {vendors.map(v => (
-              <option key={v} value={v}>{v}</option>
-            ))}
-          </select>
-
-          <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value as StatusKey)} className={selectClass}>
-            {STATUS_OPTIONS.map(s => (
-              <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
-            ))}
+            {vendors.map(v => <option key={v} value={v}>{v}</option>)}
           </select>
 
           {hasActiveFilters && (
@@ -309,64 +322,49 @@ export default function AppletsPage() {
                 <tr key={row.module} className="border-b border-border hover:bg-muted/30">
                   <td className="px-4 py-2 font-medium sticky left-0 bg-card z-10">
                     <div className="text-foreground">{row.module}</div>
-                    {row.owner && (
-                      <div className="text-[10px] text-muted-foreground mt-0.5">{row.owner}</div>
-                    )}
+                    {row.owner && <div className="text-[10px] text-muted-foreground mt-0.5">{row.owner}</div>}
                   </td>
                   {row.slots.map((slot, i) => {
                     if (!slot) return <td key={i} className="px-2 py-2"><span className="inline-block w-full h-6" /></td>;
-                    const status = assetStatus(slot);
+                    const state = classifyApplet(slot, language);
+                    const meta = STATE_META[state];
+                    const Icon = meta.icon;
                     const dimVendor = selectedVendor !== 'All' && slot.allocated_to !== selectedVendor;
-                    const dimStatus = selectedStatus !== 'All' && status !== selectedStatus;
-                    const dim = dimVendor || dimStatus;
+                    const dimState = selectedState !== 'All' && state !== selectedState;
+                    const dim = dimVendor || dimState;
                     const vendorLabel = slot.allocated_to || '—';
-                    const primaryLink = slot.link_en || slot.link_id;
-                    const primaryLabel = slot.link_en ? 'EN' : slot.link_id ? 'ID' : null;
-                    const tooltip = `${slot.mid} · ${vendorLabel} · ${status}${primaryLink ? '\nOpen applet' : ''}`;
+                    const link = language === 'en' ? slot.link_en : slot.link_id;
+                    const isNotReady = state === 'not_ready';
+                    const tooltip = `${slot.mid} · ${vendorLabel} · ${STATE_LABEL[state]}${link ? '\nClick to open' : ''}`;
                     const pillBase = cn(
-                      'relative inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium flex-1 min-w-0',
-                      vendorColor(slot.allocated_to)
+                      'relative flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium w-full min-w-0',
+                      meta.bg,
+                      isNotReady && 'border border-dashed border-slate-400/40'
+                    );
+                    const content = (
+                      <>
+                        <Icon size={11} className={cn('shrink-0', meta.text)} />
+                        <span className={cn('truncate flex-1', vendorColor(slot.allocated_to))}>{vendorLabel}</span>
+                        {link && <ExternalLink size={9} className="shrink-0 opacity-60" />}
+                      </>
                     );
                     return (
                       <td key={i} className="px-2 py-2">
                         <div className={cn('flex items-center gap-1', dim && 'opacity-30')}>
-                          {primaryLink ? (
+                          {link ? (
                             <a
-                              href={primaryLink}
+                              href={link}
                               target="_blank"
                               rel="noopener noreferrer"
                               className={cn(pillBase, 'hover:ring-1 hover:ring-foreground/30 transition-smooth cursor-pointer')}
                               title={tooltip}
                             >
-                              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusDot(status))} />
-                              <span className="truncate flex-1">{vendorLabel}</span>
-                              {primaryLabel && (
-                                <span className="flex items-center gap-0.5 shrink-0 opacity-70">
-                                  <span className="text-[9px] font-semibold tracking-wide">{primaryLabel}</span>
-                                  <ExternalLink size={9} />
-                                </span>
-                              )}
+                              {content}
                             </a>
                           ) : (
                             <span className={pillBase} title={tooltip}>
-                              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusDot(status))} />
-                              <span className="truncate flex-1">{vendorLabel}</span>
+                              {content}
                             </span>
-                          )}
-                          {slot.link_en && slot.link_id && (
-                            <a
-                              href={slot.link_id}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={cn(
-                                'shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md text-[9px] font-semibold hover:ring-1 hover:ring-foreground/30 transition-smooth',
-                                vendorColor(slot.allocated_to)
-                              )}
-                              title={`${slot.mid} · Indonesian link`}
-                            >
-                              ID
-                              <ExternalLink size={9} />
-                            </a>
                           )}
                         </div>
                       </td>
@@ -383,6 +381,21 @@ export default function AppletsPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 px-4 py-3 border-t border-border bg-muted/20 text-[11px]">
+          <span className="text-muted-foreground font-semibold uppercase tracking-wide">Legend</span>
+          {(Object.keys(STATE_LABEL) as AppletState[]).map(key => {
+            const meta = STATE_META[key];
+            const Icon = meta.icon;
+            return (
+              <span key={key} className={cn('inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md', meta.bg, meta.text)}>
+                <Icon size={11} />
+                {STATE_LABEL[key]}
+              </span>
+            );
+          })}
+          <span className="text-muted-foreground ml-auto">Dashed border = storyboard / work-in-progress (no applet link yet)</span>
         </div>
       </div>
     </>
