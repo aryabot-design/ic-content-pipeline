@@ -151,6 +151,14 @@ export default function AppletsPage() {
     return counts;
   }, [rows]);
 
+  const statusCounts = useMemo(() => {
+    const c = { 'Not Started': 0, 'In Progress': 0, 'Completed': 0 } as Record<Exclude<StatusKey, 'All'>, number>;
+    rows.forEach(r => r.slots.forEach(slot => {
+      if (slot) c[assetStatus(slot)]++;
+    }));
+    return c;
+  }, [rows]);
+
   const hasActiveFilters =
     search !== '' ||
     selectedGrade !== 'All' ||
@@ -186,7 +194,42 @@ export default function AppletsPage() {
         subtitle={`${rows.length} modules · ${totalApplets} applets across A1–A${MAX_SLOTS}`}
       />
 
-      <div className="bg-card rounded-xl border border-border p-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        {[
+          { key: 'total' as const, label: 'Applets', value: totalApplets, sub: `${rows.length} modules`, dot: 'bg-foreground/40', text: 'text-foreground' },
+          { key: 'Completed' as const, label: 'Completed', value: statusCounts.Completed, dot: 'bg-emerald-500', text: 'text-emerald-600 dark:text-emerald-400' },
+          { key: 'In Progress' as const, label: 'In Progress', value: statusCounts['In Progress'], dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
+          { key: 'Not Started' as const, label: 'Not Started', value: statusCounts['Not Started'], dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400' },
+        ].map(card => {
+          const clickable = card.key !== 'total';
+          const isActive = clickable && selectedStatus === card.key;
+          const pct = totalApplets > 0 && clickable ? Math.round((card.value / totalApplets) * 100) : null;
+          return (
+            <button
+              key={card.label}
+              disabled={!clickable}
+              onClick={() => clickable && setSelectedStatus(isActive ? 'All' : card.key)}
+              className={cn(
+                'text-left bg-card rounded-xl border border-border p-4 transition-smooth',
+                clickable && 'hover:border-foreground/20 cursor-pointer',
+                isActive && 'ring-2 ring-accent/60 border-transparent'
+              )}
+            >
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className={cn('w-1.5 h-1.5 rounded-full', card.dot)} />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{card.label}</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <span className={cn('text-2xl font-bold', card.text)}>{card.value.toLocaleString()}</span>
+                {pct !== null && <span className="text-xs text-muted-foreground">{pct}%</span>}
+              </div>
+              {card.sub && <div className="text-[11px] text-muted-foreground mt-1">{card.sub}</div>}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="sticky top-0 z-20 -mx-6 px-6 py-3 bg-background/85 backdrop-blur-md border-b border-border/50 mb-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 min-w-[220px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
