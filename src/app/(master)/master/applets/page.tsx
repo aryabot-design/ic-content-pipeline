@@ -2,11 +2,26 @@
 
 import Header from '@/components/layout/Header';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Asset } from '@/types';
 
 const MAX_SLOTS = 7;
+
+type StatusKey = 'All' | 'Not Started' | 'In Progress' | 'Completed';
+const STATUS_OPTIONS: StatusKey[] = ['All', 'Not Started', 'In Progress', 'Completed'];
+
+function assetStatus(a: Asset): Exclude<StatusKey, 'All'> {
+  const upload = (a.upload_status_en || '').toLowerCase();
+  const final = (a.final_status || '').toLowerCase();
+  if (final.includes('completed') || final.includes('all qc') || upload.includes('complete') || upload.includes('uploaded')) {
+    return 'Completed';
+  }
+  if (upload || final || a.qc_teacher_portal || a.qc_ifp || a.ready_for_review) {
+    return 'In Progress';
+  }
+  return 'Not Started';
+}
 
 function vendorColor(vendor: string): string {
   if (!vendor) return 'bg-muted text-muted-foreground';
@@ -19,11 +34,23 @@ function vendorColor(vendor: string): string {
   return 'bg-slate-500/15 text-slate-700 dark:text-slate-400';
 }
 
+function statusDot(status: Exclude<StatusKey, 'All'>): string {
+  switch (status) {
+    case 'Completed': return 'bg-emerald-500';
+    case 'In Progress': return 'bg-amber-500';
+    case 'Not Started': return 'bg-slate-400';
+  }
+}
+
 export default function AppletsPage() {
   const [allAssets, setAllAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedGrade, setSelectedGrade] = useState('All');
+  const [selectedChapter, setSelectedChapter] = useState('All');
+  const [selectedOwner, setSelectedOwner] = useState('All');
+  const [selectedVendor, setSelectedVendor] = useState('All');
+  const [selectedStatus, setSelectedStatus] = useState<StatusKey>('All');
 
   useEffect(() => {
     fetch('/api/data?type=assets')
@@ -35,19 +62,47 @@ export default function AppletsPage() {
       .catch(() => setLoading(false));
   }, []);
 
-  const grades = useMemo(
-    () =>
-      [...new Set(allAssets.map(a => a.grade_code).filter(Boolean))].sort(
-        (a, b) => parseInt(a.replace('G', '')) - parseInt(b.replace('G', ''))
-      ),
+  const appletAssets = useMemo(
+    () => allAssets.filter(a => (a.asset_type || '').toLowerCase().includes('applet')),
     [allAssets]
   );
 
-  const rows = useMemo(() => {
-    const applets = allAssets.filter(a => (a.asset_type || '').toLowerCase().includes('applet'));
-    const byModule = new Map<string, { module: string; grade: string; chapter: string; owner: string; slots: (Asset | undefined)[] }>();
+  const grades = useMemo(
+    () =>
+      [...new Set(appletAssets.map(a => a.grade_code).filter(Boolean))].sort(
+        (a, b) => parseInt(a.replace('G', '')) - parseInt(b.replace('G', ''))
+      ),
+    [appletAssets]
+  );
 
-    applets.forEach(a => {
+  const chapters = useMemo(() => {
+    const source = selectedGrade === 'All' ? appletAssets : appletAssets.filter(a => a.grade_code === selectedGrade);
+    return [...new Set(source.map(a => a.chapter_code).filter(Boolean))].sort(
+      (a, b) => parseInt(a.replace('C', '')) - parseInt(b.replace('C', ''))
+    );
+  }, [appletAssets, selectedGrade]);
+
+  const owners = useMemo(
+    () => [...new Set(appletAssets.map(a => a.module_owner).filter(Boolean))].sort(),
+    [appletAssets]
+  );
+
+  const vendors = useMemo(
+    () => [...new Set(appletAssets.map(a => a.allocated_to).filter(Boolean))].sort(),
+    [appletAssets]
+  );
+
+  // Reset chapter when grade changes to an incompatible value
+  useEffect(() => {
+    if (selectedChapter !== 'All' && !chapters.includes(selectedChapter)) {
+      setSelectedChapter('All');
+    }
+  }, [chapters, selectedChapter]);
+
+  const rows = useMemo(() => {
+    const byModule = new Map<string, { module: string; grade: string; chapter: string; owner: string; slots: Asset[] }>();
+
+    appletAssets.forEach(a => {
       const mid = a.module_mid || 'Unknown';
       if (!byModule.has(mid)) {
         byModule.set(mid, {
@@ -62,7 +117,7 @@ export default function AppletsPage() {
     });
 
     const result = Array.from(byModule.values()).map(row => {
-      const sorted = (row.slots.filter(Boolean) as Asset[]).sort((x, y) =>
+      const sorted = [...row.slots].sort((x, y) =>
         (x.mid || '').localeCompare(y.mid || '', undefined, { numeric: true })
       );
       const padded: (Asset | undefined)[] = [];
@@ -70,27 +125,48 @@ export default function AppletsPage() {
       return { ...row, slots: padded };
     });
 
-    result.sort((a, b) =>
-      a.module.localeCompare(b.module, undefined, { numeric: true })
-    );
+    result.sort((a, b) => a.module.localeCompare(b.module, undefined, { numeric: true }));
 
-    let filtered = result;
-    if (selectedGrade !== 'All') filtered = filtered.filter(r => r.grade === selectedGrade);
-    if (search) {
-      const s = search.toLowerCase();
-      filtered = filtered.filter(r =>
-        r.module.toLowerCase().includes(s) ||
-        r.slots.some(slot => slot?.allocated_to?.toLowerCase().includes(s))
-      );
-    }
-    return filtered;
-  }, [allAssets, selectedGrade, search]);
+    const s = search.toLowerCase();
+    return result.filter(r => {
+      if (selectedGrade !== 'All' && r.grade !== selectedGrade) return false;
+      if (selectedChapter !== 'All' && r.chapter !== selectedChapter) return false;
+      if (selectedOwner !== 'All' && r.owner !== selectedOwner) return false;
+      if (selectedVendor !== 'All' && !r.slots.some(slot => slot?.allocated_to === selectedVendor)) return false;
+      if (selectedStatus !== 'All' && !r.slots.some(slot => slot && assetStatus(slot) === selectedStatus)) return false;
+      if (s) {
+        const matches =
+          r.module.toLowerCase().includes(s) ||
+          r.owner.toLowerCase().includes(s) ||
+          r.slots.some(slot => slot?.allocated_to?.toLowerCase().includes(s) || slot?.mid?.toLowerCase().includes(s));
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [appletAssets, selectedGrade, selectedChapter, selectedOwner, selectedVendor, selectedStatus, search]);
 
   const columnTotals = useMemo(() => {
     const counts = new Array(MAX_SLOTS).fill(0);
     rows.forEach(r => r.slots.forEach((s, i) => { if (s) counts[i]++; }));
     return counts;
   }, [rows]);
+
+  const hasActiveFilters =
+    search !== '' ||
+    selectedGrade !== 'All' ||
+    selectedChapter !== 'All' ||
+    selectedOwner !== 'All' ||
+    selectedVendor !== 'All' ||
+    selectedStatus !== 'All';
+
+  const clearFilters = () => {
+    setSearch('');
+    setSelectedGrade('All');
+    setSelectedChapter('All');
+    setSelectedOwner('All');
+    setSelectedVendor('All');
+    setSelectedStatus('All');
+  };
 
   if (loading) {
     return (
@@ -101,6 +177,7 @@ export default function AppletsPage() {
   }
 
   const totalApplets = columnTotals.reduce((a, b) => a + b, 0);
+  const selectClass = 'text-sm bg-muted rounded-lg px-3 py-2 border-0 focus:outline-none focus:ring-2 focus:ring-accent/30';
 
   return (
     <>
@@ -111,27 +188,60 @@ export default function AppletsPage() {
 
       <div className="bg-card rounded-xl border border-border p-4 mb-6">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[220px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input
               type="text"
-              placeholder="Search module or vendor..."
+              placeholder="Search module, owner, vendor, asset ID..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm bg-muted rounded-lg border-0 focus:outline-none focus:ring-2 focus:ring-accent/30"
             />
           </div>
 
-          <select
-            value={selectedGrade}
-            onChange={e => setSelectedGrade(e.target.value)}
-            className="text-sm bg-muted rounded-lg px-3 py-2 border-0 focus:outline-none focus:ring-2 focus:ring-accent/30"
-          >
+          <select value={selectedGrade} onChange={e => setSelectedGrade(e.target.value)} className={selectClass}>
             <option value="All">All Grades</option>
             {grades.map(g => (
               <option key={g} value={g}>{g.replace('G', 'Grade ')}</option>
             ))}
           </select>
+
+          <select value={selectedChapter} onChange={e => setSelectedChapter(e.target.value)} className={selectClass}>
+            <option value="All">All Chapters</option>
+            {chapters.map(c => (
+              <option key={c} value={c}>Chapter {c.replace('C', '')}</option>
+            ))}
+          </select>
+
+          <select value={selectedOwner} onChange={e => setSelectedOwner(e.target.value)} className={selectClass}>
+            <option value="All">All Owners</option>
+            {owners.map(o => (
+              <option key={o} value={o}>{o}</option>
+            ))}
+          </select>
+
+          <select value={selectedVendor} onChange={e => setSelectedVendor(e.target.value)} className={selectClass}>
+            <option value="All">All Vendors</option>
+            {vendors.map(v => (
+              <option key={v} value={v}>{v}</option>
+            ))}
+          </select>
+
+          <select value={selectedStatus} onChange={e => setSelectedStatus(e.target.value as StatusKey)} className={selectClass}>
+            {STATUS_OPTIONS.map(s => (
+              <option key={s} value={s}>{s === 'All' ? 'All Statuses' : s}</option>
+            ))}
+          </select>
+
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground px-3 py-2 rounded-lg hover:bg-muted transition-smooth"
+            >
+              <X size={12} />
+              Clear
+            </button>
+          )}
         </div>
       </div>
 
@@ -160,23 +270,28 @@ export default function AppletsPage() {
                       <div className="text-[10px] text-muted-foreground mt-0.5">{row.owner}</div>
                     )}
                   </td>
-                  {row.slots.map((slot, i) => (
-                    <td key={i} className="px-2 py-2">
-                      {slot ? (
+                  {row.slots.map((slot, i) => {
+                    if (!slot) return <td key={i} className="px-2 py-2"><span className="inline-block w-full h-6" /></td>;
+                    const status = assetStatus(slot);
+                    const dimVendor = selectedVendor !== 'All' && slot.allocated_to !== selectedVendor;
+                    const dimStatus = selectedStatus !== 'All' && status !== selectedStatus;
+                    const dim = dimVendor || dimStatus;
+                    return (
+                      <td key={i} className="px-2 py-2">
                         <span
                           className={cn(
-                            'inline-block px-2 py-1 rounded-md text-xs font-medium w-full truncate',
-                            vendorColor(slot.allocated_to)
+                            'relative inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium w-full',
+                            vendorColor(slot.allocated_to),
+                            dim && 'opacity-30'
                           )}
-                          title={`${slot.mid} · ${slot.allocated_to || 'Unassigned'}`}
+                          title={`${slot.mid} · ${slot.allocated_to || 'Unassigned'} · ${status}`}
                         >
-                          {slot.allocated_to || '—'}
+                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusDot(status))} />
+                          <span className="truncate">{slot.allocated_to || '—'}</span>
                         </span>
-                      ) : (
-                        <span className="inline-block w-full h-6" />
-                      )}
-                    </td>
-                  ))}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
               {rows.length === 0 && (
