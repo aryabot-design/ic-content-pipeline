@@ -16,6 +16,7 @@ import {
   BarChart3,
   Upload,
   Grid3x3,
+  UploadCloud,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useState, useRef } from 'react';
@@ -38,6 +39,7 @@ const masterNav = [
   { href: '/master/grades', label: 'Grades', icon: GraduationCap },
   { href: '/master/tracker', label: 'Asset Tracker', icon: Table2 },
   { href: '/master/applets', label: 'Applet Matrix', icon: Grid3x3 },
+  { href: '/master/uploads', label: 'Upload Queue', icon: UploadCloud },
   { href: '/master/pipeline', label: 'QC Pipeline', icon: GitBranch },
   { href: '/master/vendors', label: 'Vendors', icon: Users },
 ];
