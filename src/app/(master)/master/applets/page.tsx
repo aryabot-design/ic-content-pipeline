@@ -2,7 +2,7 @@
 
 import Header from '@/components/layout/Header';
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Search, X } from 'lucide-react';
+import { Loader2, Search, X, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Asset } from '@/types';
 
@@ -319,19 +319,56 @@ export default function AppletsPage() {
                     const dimVendor = selectedVendor !== 'All' && slot.allocated_to !== selectedVendor;
                     const dimStatus = selectedStatus !== 'All' && status !== selectedStatus;
                     const dim = dimVendor || dimStatus;
+                    const vendorLabel = slot.allocated_to || '—';
+                    const primaryLink = slot.link_en || slot.link_id;
+                    const primaryLabel = slot.link_en ? 'EN' : slot.link_id ? 'ID' : null;
+                    const tooltip = `${slot.mid} · ${vendorLabel} · ${status}${primaryLink ? '\nOpen applet' : ''}`;
+                    const pillBase = cn(
+                      'relative inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium flex-1 min-w-0',
+                      vendorColor(slot.allocated_to)
+                    );
                     return (
                       <td key={i} className="px-2 py-2">
-                        <span
-                          className={cn(
-                            'relative inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium w-full',
-                            vendorColor(slot.allocated_to),
-                            dim && 'opacity-30'
+                        <div className={cn('flex items-center gap-1', dim && 'opacity-30')}>
+                          {primaryLink ? (
+                            <a
+                              href={primaryLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(pillBase, 'hover:ring-1 hover:ring-foreground/30 transition-smooth cursor-pointer')}
+                              title={tooltip}
+                            >
+                              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusDot(status))} />
+                              <span className="truncate flex-1">{vendorLabel}</span>
+                              {primaryLabel && (
+                                <span className="flex items-center gap-0.5 shrink-0 opacity-70">
+                                  <span className="text-[9px] font-semibold tracking-wide">{primaryLabel}</span>
+                                  <ExternalLink size={9} />
+                                </span>
+                              )}
+                            </a>
+                          ) : (
+                            <span className={pillBase} title={tooltip}>
+                              <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusDot(status))} />
+                              <span className="truncate flex-1">{vendorLabel}</span>
+                            </span>
                           )}
-                          title={`${slot.mid} · ${slot.allocated_to || 'Unassigned'} · ${status}`}
-                        >
-                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', statusDot(status))} />
-                          <span className="truncate">{slot.allocated_to || '—'}</span>
-                        </span>
+                          {slot.link_en && slot.link_id && (
+                            <a
+                              href={slot.link_id}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={cn(
+                                'shrink-0 inline-flex items-center gap-0.5 px-1.5 py-1 rounded-md text-[9px] font-semibold hover:ring-1 hover:ring-foreground/30 transition-smooth',
+                                vendorColor(slot.allocated_to)
+                              )}
+                              title={`${slot.mid} · Indonesian link`}
+                            >
+                              ID
+                              <ExternalLink size={9} />
+                            </a>
+                          )}
+                        </div>
                       </td>
                     );
                   })}
