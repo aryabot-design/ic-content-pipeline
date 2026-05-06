@@ -1,7 +1,7 @@
 // Data source: local JSON exports from PostgreSQL
 // Replace with Supabase queries later
 
-import type { Asset, DashboardStats } from '@/types';
+import type { Asset, DashboardStats, CurriculumModule } from '@/types';
 import curriculumData from '@/data/dump_curriculum.json';
 import assetData from '@/data/dump_assets.json';
 
