@@ -36,8 +36,24 @@ export function fetchSheetData(): Asset[] {
   return ASSETS;
 }
 
-export function fetchCurriculumData(): any[] {
-  return curriculumData;
+export function fetchCurriculumData(): CurriculumModule[] {
+  return (curriculumData as any[]).map((r: any) => ({
+    phase: '',
+    tpCode: '',
+    thread: r.thread || 'Uncategorized',
+    strand: r.strand || '',
+    gradeCode: (r.grade || '').replace(/^G0/, 'G'),
+    chapterCode: r.chapter || '',
+    chapterName: r.chapter_name || '',
+    conceptCode: r.module_mid || '',
+    conceptName: r.module_name || '',
+    conceptType: r.concept_type || 'Learn',
+    conceptDescription: '',
+    status: r.team_owner === 'Done' ? 'Module Completed' : (r.team_owner && r.team_owner !== '' ? 'Content WIP' : 'Yet To Start'),
+    teamOwner: r.team_owner || '',
+    individualOwner: r.individual_owner || '',
+    dateOfDelivery: r.delivery_date || '',
+  }));
 }
 
 export function invalidateCache() {}
