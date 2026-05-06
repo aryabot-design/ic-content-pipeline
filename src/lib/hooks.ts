@@ -1,114 +1,66 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-import { signIn } from 'next-auth/react';
 import type { DashboardStats, Asset } from '@/types';
 
-async function fetchWithAuth(url: string) {
-  const res = await fetch(url);
-  const data = await res.json();
+export function useDashboardStats(): DashboardStats | null {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  useEffect(() => {
+    fetch('/api/data?type=stats')
+      .then(r => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, []);
+  return stats;
+}
 
-  // If 401, re-trigger sign in to get a fresh token
-  if (res.status === 401 || data.error?.includes('Not authenticated')) {
-    signIn('google');
-    throw new Error('Redirecting to sign in...');
-  }
-
-  if (!res.ok) {
-    throw new Error(data.error || 'Failed to fetch');
-  }
-
-  return data;
+export function useAssets(params?: Record<string, string>): { assets: Asset[]; total: number; loading: boolean } {
+  const [data, setData] = useState<{ assets: Asset[]; total: number }>({ assets: [], total: 0 });
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    setLoading(true);
+    const q = new URLSearchParams(params || {});
+    q.set('type', 'assets');
+    fetch('/api/data?' + q.toString())
+      .then(r => r.json())
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [JSON.stringify(params)]);
+  return { ...data, loading };
 }
 
 export function useStats() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
-
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
-    fetchWithAuth('/api/data?type=stats')
-      .then(data => {
-        if (data.total_assets !== undefined) {
-          setStats(data);
-        }
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
+    fetch('/api/data?type=stats')
+      .then(r => r.json())
+      .then(d => { setStats(d); setLoading(false); })
+      .catch(() => setLoading(false));
   }, []);
-
   return { stats, loading, error };
 }
 
-export function useAssets(params?: Record<string, string>) {
-  const [assets, setAssets] = useState<Asset[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const searchParams = new URLSearchParams({ type: 'assets', ...params });
-    fetchWithAuth(`/api/data?${searchParams}`)
-      .then(data => {
-        setAssets(data.assets || []);
-        setTotal(data.total || 0);
-        setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [JSON.stringify(params)]);
-
-  return { assets, total, loading, error };
-}
-
 export function useGrades() {
-  const [grades, setGrades] = useState<Array<{
-    code: string;
-    total_assets: number;
-    completed: number;
-    pending: number;
-    completion_rate: number;
-    total_chapters: number;
-    total_modules: number;
-  }>>([]);
+  const [grades, setGrades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
-    fetchWithAuth('/api/data?type=grades')
-      .then(data => {
-        if (Array.isArray(data)) setGrades(data);
-        setLoading(false);
-      })
+    fetch('/api/data?type=grades')
+      .then(r => r.json())
+      .then(d => { setGrades(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
-
   return { grades, loading };
 }
 
 export function useVendors() {
-  const [vendors, setVendors] = useState<Array<{
-    name: string;
-    total: number;
-    completed: number;
-    pending: number;
-    completion_rate: number;
-    types: Record<string, number>;
-  }>>([]);
+  const [vendors, setVendors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
-    fetchWithAuth('/api/data?type=vendors')
-      .then(data => {
-        if (Array.isArray(data)) setVendors(data);
-        setLoading(false);
-      })
+    fetch('/api/data?type=vendors')
+      .then(r => r.json())
+      .then(d => { setVendors(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
-
   return { vendors, loading };
 }

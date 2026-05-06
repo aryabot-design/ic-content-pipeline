@@ -1,7 +1,6 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface HeaderProps {
   title: string;
@@ -10,53 +9,41 @@ interface HeaderProps {
 }
 
 export default function Header({ title, subtitle, lastSync }: HeaderProps) {
-  const [time, setTime] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    const updateTime = () => {
-      setTime(new Date().toLocaleString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric',
-      }));
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const syncAgo = lastSync
-    ? getTimeAgo(new Date(lastSync))
-    : null;
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setMessage('Run refresh-data.sh on the server to update →');
+    setTimeout(() => { setMessage(''); setRefreshing(false); }, 5000);
+  };
 
   return (
-    <header className="flex items-center justify-between mb-6">
+    <div className="flex items-center justify-between mb-6">
       <div>
-        <h1 className="text-lg font-bold text-foreground">{title}</h1>
+        <h1 className="text-xl font-bold text-foreground">{title}</h1>
         {subtitle && (
-          <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">{subtitle}</p>
+          <p className="text-[13px] text-muted-foreground mt-0.5">{subtitle}</p>
         )}
       </div>
-      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-        {syncAgo && (
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-success inline-block" />
-            <span>Synced {syncAgo}</span>
-          </div>
+      <div className="flex items-center gap-3">
+        {lastSync && (
+          <span className="text-[11px] text-[var(--text-tertiary)]">{lastSync}</span>
         )}
-        <span>{time}</span>
+        {message && (
+          <span className="text-[11px] text-yellow-400">{message}</span>
+        )}
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 text-[12px] font-medium bg-card border border-border rounded-lg px-3 py-1.5 text-foreground hover:border-[#444] transition-smooth disabled:opacity-50"
+        >
+          <svg className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh Data
+        </button>
       </div>
-    </header>
+    </div>
   );
-}
-
-function getTimeAgo(date: Date): string {
-  const now = new Date();
-  const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
 }

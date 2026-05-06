@@ -1,3 +1,4 @@
-import { handlers } from '@/lib/auth';
+import { NextResponse } from 'next/server';
 
-export const { GET, POST } = handlers;
+export const GET = () => NextResponse.json({ user: { name: 'Team' } });
+export const POST = () => NextResponse.json({ user: { name: 'Team' } });
